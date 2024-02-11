@@ -47,17 +47,17 @@ type Reservation struct {
 	ID_creneau     int `json:"id_creneau"`
 }
 
-// VARIABLE
 var (
 	db             *sql.DB
 	clientsMu      sync.RWMutex
-	creneauxMu     sync.RWMutex
-	reservationsMu sync.RWMutex
 	salonsMu       sync.RWMutex
 	coiffeursMu    sync.RWMutex
+	creneauxMu     sync.RWMutex
+	reservationsMu sync.RWMutex
 	nextID         = 1
 )
 
+// / MAIN
 func main() {
 	/// BASE DE DONNÉES
 	var err error
@@ -71,9 +71,6 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	port := 8080
-	fmt.Printf("Server is running on port %d...\n", port)
-	log.Fatal(http.ListenAndServe(fmt.Sprintf(":%d", port), nil))
 
 	/// TABLES
 	_, err = db.Exec(`
@@ -90,23 +87,23 @@ func main() {
 	}
 
 	_, err = db.Exec(`
-	CREATE TABLE IF NOT EXISTS salons (
-		id_salon INT AUTO_INCREMENT PRIMARY KEY,
-		name VARCHAR(150)
-	);
-`)
+		CREATE TABLE IF NOT EXISTS salons (
+			id_salon INT AUTO_INCREMENT PRIMARY KEY,
+			name VARCHAR(150)
+		);
+    `)
 	if err != nil {
 		log.Fatal(err)
 	}
 
 	_, err = db.Exec(`
-CREATE TABLE IF NOT EXISTS coiffeurs (
-	id_coiffeur INT AUTO_INCREMENT PRIMARY KEY,
-	id_salon INT,
-	firstname VARCHAR(150),
-	lastname VARCHAR(150)
-);
-`)
+		CREATE TABLE IF NOT EXISTS coiffeurs (
+			id_coiffeur INT AUTO_INCREMENT PRIMARY KEY,
+			id_salon INT,
+			firstname VARCHAR(150),
+			lastname VARCHAR(150)
+		);
+    `)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -136,12 +133,23 @@ CREATE TABLE IF NOT EXISTS coiffeurs (
 	}
 
 	/// ROUTES
-
 	/// Clients
 	http.HandleFunc("/api/clients", getClientsHandler)
 	http.HandleFunc("/api/clients/add", addClientHandler)
 	http.HandleFunc("/api/clients/update", updateClientHandler)
 	http.HandleFunc("/api/clients/delete", deleteClientHandler)
+
+	/// Salons
+	http.HandleFunc("/api/salons", getSalonsHandler)
+	http.HandleFunc("/api/salons/add", addSalonHandler)
+	http.HandleFunc("/api/salons/update", updateSalonHandler)
+	http.HandleFunc("/api/salons/delete", deleteSalonHandler)
+
+	/// Coiffeurs
+	http.HandleFunc("/api/coiffeurs", getCoiffeursHandler)
+	http.HandleFunc("/api/coiffeur/add", addCoiffeurHandler)
+	http.HandleFunc("/api/coiffeur/update", updateCoiffeurHandler)
+	http.HandleFunc("/api/coiffeur/delete", deleteCoiffeurHandler)
 
 	/// Creneaux
 	http.HandleFunc("/api/creneaux", getCreneauxHandler)
@@ -155,20 +163,10 @@ CREATE TABLE IF NOT EXISTS coiffeurs (
 	http.HandleFunc("/api/reservations/update", updateReservationHandler)
 	http.HandleFunc("/api/reservations/delete", deleteReservationHandler)
 
-	/// Salons
-	http.HandleFunc("/api/salons", getSalonsHandler)
-	http.HandleFunc("/api/salons/add", addSalonHandler)
-	http.HandleFunc("/api/salons/update", updateSalonHandler)
-	http.HandleFunc("/api/salons/delete", deleteSalonHandler)
-
-	/// Coiffeurs
-	http.HandleFunc("/api/coiffeurs", getCoiffeursHandler)
-	http.HandleFunc("/api/coiffeur/add", addCoiffeurHandler)
-	http.HandleFunc("/api/coiffeur/update", updateCoiffeurHandler)
-	http.HandleFunc("/api/coiffeur/delete", deleteCoiffeurHandler)
+	port := 8080
+	fmt.Printf("Server is running on port %d...\n", port)
+	log.Fatal(http.ListenAndServe(fmt.Sprintf(":%d", port), nil))
 }
-
-//FUNCTIONS
 
 // CLIENTS
 func addClientHandler(w http.ResponseWriter, r *http.Request) {
