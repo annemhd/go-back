@@ -53,6 +53,8 @@ var (
 	clientsMu      sync.RWMutex
 	creneauxMu     sync.RWMutex
 	reservationsMu sync.RWMutex
+	salonsMu       sync.RWMutex
+	coiffeursMu    sync.RWMutex
 	nextID         = 1
 )
 
@@ -153,6 +155,17 @@ CREATE TABLE IF NOT EXISTS coiffeurs (
 	http.HandleFunc("/api/reservations/update", updateReservationHandler)
 	http.HandleFunc("/api/reservations/delete", deleteReservationHandler)
 
+	/// Salons
+	http.HandleFunc("/api/salons", getSalonsHandler)
+	http.HandleFunc("/api/salons/add", addSalonHandler)
+	http.HandleFunc("/api/salons/update", updateSalonHandler)
+	http.HandleFunc("/api/salons/delete", deleteSalonHandler)
+
+	/// Coiffeurs
+	http.HandleFunc("/api/coiffeurs", getCoiffeursHandler)
+	http.HandleFunc("/api/coiffeur/add", addCoiffeurHandler)
+	http.HandleFunc("/api/coiffeur/update", updateCoiffeurHandler)
+	http.HandleFunc("/api/coiffeur/delete", deleteCoiffeurHandler)
 }
 
 //FUNCTIONS
@@ -293,6 +306,279 @@ func deleteClientHandler(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 }
 
+// SALONS
+func addSalonHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+
+	var newSalon Salon
+	err := json.NewDecoder(r.Body).Decode(&newSalon)
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	result, err := db.Exec("INSERT INTO salons (name) VALUES (?)", newSalon.Name)
+	if err != nil {
+		log.Println(err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	id, err := result.LastInsertId()
+	if err != nil {
+		log.Println(err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	newSalon.ID_salon = int(id)
+
+	w.WriteHeader(http.StatusCreated)
+	json.NewEncoder(w).Encode(newSalon)
+}
+
+func getSalonsHandler(w http.ResponseWriter, r *http.Request) {
+	salonsMu.RLock()
+	defer salonsMu.RUnlock()
+
+	// Fetch users from the database
+	rows, err := db.Query("SELECT * FROM salons")
+	if err != nil {
+		log.Println(err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	defer rows.Close()
+
+	var salonList []Salon
+	for rows.Next() {
+		var salon Salon
+		err := rows.Scan(&salon.ID_salon, &salon.Name)
+		if err != nil {
+			log.Println(err)
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		salonList = append(salonList, salon)
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(salonList)
+}
+
+func updateSalonHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPut {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+
+	var updatedSalon Salon
+	err := json.NewDecoder(r.Body).Decode(&updatedSalon)
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	salonsMu.RLock()
+	defer salonsMu.RUnlock()
+	row := db.QueryRow("SELECT id_salon FROM salons WHERE id_salon=?", updatedSalon.ID_salon)
+	if err := row.Scan(&updatedSalon.ID_salon); err != nil {
+		if err == sql.ErrNoRows {
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+		log.Println(err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	_, err = db.Exec("UPDATE salons SET name=? WHERE id_salon=?", updatedSalon.Name, updatedSalon.ID_salon)
+	if err != nil {
+		log.Println(err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(updatedSalon)
+}
+
+func deleteSalonHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodDelete {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+
+	idParam := r.URL.Query().Get("id_salon")
+	id, err := strconv.Atoi(idParam)
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	salonsMu.Lock()
+	defer salonsMu.Unlock()
+	row := db.QueryRow("SELECT id_salon FROM salons WHERE id_salon=?", id)
+	if err := row.Scan(&id); err != nil {
+		if err == sql.ErrNoRows {
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+		log.Println(err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	_, err = db.Exec("DELETE FROM salons WHERE id_salon=?", id)
+	if err != nil {
+		log.Println(err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+}
+
+// COIFFEURS
+func addCoiffeurHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+
+	var newCoiffeur Coiffeur
+	err := json.NewDecoder(r.Body).Decode(&newCoiffeur)
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	result, err := db.Exec("INSERT INTO coiffeurs (id_salon, firstname, lastname) VALUES (?, ?, ?)", newCoiffeur.ID_coiffeur, newCoiffeur.Firstname, newCoiffeur.Lastname)
+	if err != nil {
+		log.Println(err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	id, err := result.LastInsertId()
+	if err != nil {
+		log.Println(err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	newCoiffeur.ID_coiffeur = int(id)
+
+	w.WriteHeader(http.StatusCreated)
+	json.NewEncoder(w).Encode(newCoiffeur)
+}
+
+func getCoiffeursHandler(w http.ResponseWriter, r *http.Request) {
+	coiffeursMu.RLock()
+	defer coiffeursMu.RUnlock()
+
+	// Fetch users from the database
+	rows, err := db.Query("SELECT * FROM coiffeurs")
+	if err != nil {
+		log.Println(err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	defer rows.Close()
+
+	var coiffeurList []Coiffeur
+	for rows.Next() {
+		var coiffeur Coiffeur
+		err := rows.Scan(&coiffeur.ID_coiffeur, &coiffeur.ID_salon, &coiffeur.Firstname, &coiffeur.Lastname)
+		if err != nil {
+			log.Println(err)
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		coiffeurList = append(coiffeurList, coiffeur)
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(coiffeurList)
+}
+
+func updateCoiffeurHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPut {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+
+	var updatedCoiffeur Coiffeur
+	err := json.NewDecoder(r.Body).Decode(&updatedCoiffeur)
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	coiffeursMu.RLock()
+	defer coiffeursMu.RUnlock()
+	row := db.QueryRow("SELECT id_coiffeur FROM coiffeurs WHERE id_coiffeur=?", updatedCoiffeur.ID_coiffeur)
+	if err := row.Scan(&updatedCoiffeur.ID_coiffeur); err != nil {
+		if err == sql.ErrNoRows {
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+		log.Println(err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	_, err = db.Exec("UPDATE coiffeurs SET id_salon=?, firstname=?, lastname=? WHERE id_coiffeur=?", updatedCoiffeur.ID_salon, updatedCoiffeur.Firstname, updatedCoiffeur.Lastname, updatedCoiffeur.ID_coiffeur)
+	if err != nil {
+		log.Println(err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(updatedCoiffeur)
+}
+
+func deleteCoiffeurHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodDelete {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+
+	idParam := r.URL.Query().Get("id_coiffeur")
+	id, err := strconv.Atoi(idParam)
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	coiffeursMu.Lock()
+	defer coiffeursMu.Unlock()
+	row := db.QueryRow("SELECT id_coiffeur FROM coiffeurs WHERE id_coiffeur=?", id)
+	if err := row.Scan(&id); err != nil {
+		if err == sql.ErrNoRows {
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+		log.Println(err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	_, err = db.Exec("DELETE FROM coiffeurs WHERE id_coiffeur=?", id)
+	if err != nil {
+		log.Println(err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+}
+
+// CRENEAU
 func addCreneauHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		w.WriteHeader(http.StatusMethodNotAllowed)
