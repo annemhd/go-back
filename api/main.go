@@ -21,11 +21,28 @@ type Client struct {
 	Password  string `json:"password"`
 }
 
+type Salon struct {
+	ID_salon int    `json:"id_salon"`
+	Name     string `json:"name"`
+}
+
+
+type Coiffeur struct {
+	ID_coiffeur int    `json:"id_coiffeur"`
+	ID_salon    int    `json:"id_salon"`
+	Firstname   string `json:"firstname"`
+	Lastname    string `json:"lastname"`
+}
+
+
+//VARIABLE
 var (
 	db        *sql.DB
 	clientsMu sync.RWMutex
 	nextID    = 1
 )
+
+
 
 func main() {
 	/// BASE DE DONNÉES
@@ -57,6 +74,28 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+
+	_, err = db.Exec(`
+	CREATE TABLE IF NOT EXISTS salons (
+		id_salon INT AUTO_INCREMENT PRIMARY KEY,
+		name VARCHAR(150)
+	);
+`)
+if err != nil {
+	log.Fatal(err)
+}
+
+_, err = db.Exec(`
+CREATE TABLE IF NOT EXISTS coiffeurs (
+	id_coiffeur INT AUTO_INCREMENT PRIMARY KEY,
+	id_salon INT,
+	firstname VARCHAR(150),
+	lastname VARCHAR(150)
+);
+`)
+if err != nil {
+log.Fatal(err)
+}
 
 	/// ROUTES
 
